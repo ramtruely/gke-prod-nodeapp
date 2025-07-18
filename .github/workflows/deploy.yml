@@ -1,0 +1,43 @@
+name: GKE Deploy
+
+on:
+  push:
+    branches:
+      - main1
+
+env:
+  PROJECT_ID: devops-446301
+  GKE_CLUSTER: 
+  GKE_ZONE: us-central1
+  IMAGE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/node-app
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - name: Auth to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configure GKE
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          install_components: 'gke-gcloud-auth-plugin'
+
+      - name: Get GKE Credentials
+        run: gcloud container clusters get-credentials $GKE_CLUSTER --zone $GKE_ZONE
+
+      - name: Build & Push Docker Image
+        run: |
+          docker build -t $IMAGE:$GITHUB_SHA .
+          docker push $IMAGE:$GITHUB_SHA
+
+      - name: Deploy to GKE
+        run: |
+          kubectl apply -f k8s/prod/deployment.yaml
